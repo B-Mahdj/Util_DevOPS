@@ -1,0 +1,53 @@
+---
+- name: Configure web server
+  hosts: all
+  become: true
+
+  vars:
+    apache_port: 8080
+
+  tasks:
+    - name: Install Apache
+      apt:
+        name: apache2
+        state: latest
+
+    - name: Change Apache port
+      lineinfile:
+        dest: /etc/apache2/ports.conf
+        regexp: "^Listen 80"
+        line: "Listen 8080"
+        state: present
+      notify:
+        - Restart Apache
+
+    - name: Configure Apache virtual host
+      copy:
+        content: |
+          <VirtualHost *:8080>
+              ServerAdmin webmaster@localhost
+              DocumentRoot /var/www/html
+
+              ErrorLog ${APACHE_LOG_DIR}/error.log
+              CustomLog ${APACHE_LOG_DIR}/access.log combined
+          </VirtualHost>
+        dest: /etc/apache2/sites-available/000-default.conf
+        backup: yes
+      notify:
+        - Reload Apache
+
+    - name: Remove default Apache website
+      file:
+        path: /var/www/html
+        state: absent
+
+    - name: Clone static website repository
+      git:
+        repo: https://github.com/cloudacademy/static-website-example.git
+        dest: /var/www/html
+
+  handlers:
+    - name: Restart Apache
+      service:
+        name: apache2
+        state: restarted
